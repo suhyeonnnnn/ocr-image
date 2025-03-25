@@ -1,0 +1,436 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>OCR 이미지 인식 애플리케이션</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/tesseract.js/4.1.1/tesseract.min.js"></script>
+    <style>
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            font-family: 'Noto Sans KR', sans-serif;
+        }
+        
+        body {
+            background-color: #f7f9fc;
+            color: #333;
+            line-height: 1.6;
+        }
+        
+        .container {
+            max-width: 900px;
+            margin: 0 auto;
+            padding: 2rem;
+        }
+        
+        header {
+            text-align: center;
+            margin-bottom: 2rem;
+        }
+        
+        h1 {
+            color: #2c3e50;
+            margin-bottom: 0.5rem;
+        }
+        
+        .subtitle {
+            color: #7f8c8d;
+            font-size: 1.1rem;
+        }
+        
+        .card {
+            background-color: white;
+            border-radius: 10px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+            padding: 2rem;
+            margin-bottom: 2rem;
+        }
+        
+        .upload-section {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 1.5rem;
+            padding: 2rem;
+            border: 2px dashed #bdc3c7;
+            border-radius: 10px;
+            transition: all 0.3s;
+            background-color: #f8f9fa;
+        }
+        
+        .upload-section.drag-over {
+            background-color: #e3f2fd;
+            border-color: #3498db;
+        }
+        
+        .file-input {
+            display: none;
+        }
+        
+        .btn {
+            background-color: #3498db;
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            font-size: 1rem;
+            font-weight: 500;
+            border-radius: 5px;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+        
+        .btn:hover {
+            background-color: #2980b9;
+        }
+        
+        .btn:disabled {
+            background-color: #bdc3c7;
+            cursor: not-allowed;
+        }
+        
+        .preview-container {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 1rem;
+            margin-top: 2rem;
+        }
+        
+        .image-preview {
+            max-width: 100%;
+            max-height: 300px;
+            border-radius: 5px;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+        }
+        
+        .loading {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 1rem;
+            margin: 2rem 0;
+        }
+        
+        .spinner {
+            border: 4px solid rgba(0, 0, 0, 0.1);
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            border-left-color: #3498db;
+            animation: spin 1s linear infinite;
+        }
+        
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        
+        .results {
+            margin-top: 2rem;
+        }
+        
+        .data-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 1rem;
+            margin-top: 1rem;
+        }
+        
+        .data-item {
+            background-color: #f8f9fa;
+            padding: 1rem;
+            border-radius: 5px;
+            border-left: 4px solid #3498db;
+        }
+        
+        .data-label {
+            font-weight: 700;
+            color: #2c3e50;
+            margin-bottom: 0.5rem;
+            display: block;
+        }
+        
+        .data-value {
+            font-size: 1.1rem;
+            word-break: break-word;
+        }
+        
+        .raw-text {
+            margin-top: 2rem;
+            padding: 1rem;
+            background-color: #f8f9fa;
+            border-radius: 5px;
+            max-height: 300px;
+            overflow-y: auto;
+            white-space: pre-wrap;
+            font-family: monospace;
+            font-size: 0.9rem;
+            border: 1px solid #ddd;
+        }
+        
+        .progress-container {
+            width: 100%;
+            height: 20px;
+            background-color: #f1f1f1;
+            border-radius: 10px;
+            margin: 1rem 0;
+            overflow: hidden;
+        }
+        
+        .progress-bar {
+            height: 100%;
+            background-color: #3498db;
+            border-radius: 10px;
+            transition: width 0.3s;
+        }
+        
+        .section-title {
+            margin: 1.5rem 0 1rem;
+            color: #2c3e50;
+            font-weight: 600;
+            border-bottom: 2px solid #eee;
+            padding-bottom: 0.5rem;
+        }
+
+        footer {
+            text-align: center;
+            margin-top: 2rem;
+            color: #7f8c8d;
+            font-size: 0.9rem;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>OCR 이미지 인식 애플리케이션</h1>
+            <p class="subtitle">이미지에서 이름, 나이, 물건, 배송일 정보를 자동으로 추출합니다</p>
+        </header>
+        
+        <div class="card">
+            <div id="upload-section" class="upload-section">
+                <svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="#3498db" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                    <polyline points="17 8 12 3 7 8"></polyline>
+                    <line x1="12" y1="3" x2="12" y2="15"></line>
+                </svg>
+                <p>이미지 파일을 드래그 앤 드롭하거나 클릭하여 선택하세요</p>
+                <input type="file" id="file-input" class="file-input" accept="image/*">
+                <button id="select-button" class="btn">이미지 선택</button>
+            </div>
+            
+            <div id="preview-container" class="preview-container" style="display: none;">
+                <h3 class="section-title">업로드된 이미지</h3>
+                <img id="image-preview" class="image-preview" src="" alt="선택한 이미지 미리보기">
+                <button id="process-button" class="btn">이미지 분석하기</button>
+            </div>
+            
+            <div id="loading" class="loading" style="display: none;">
+                <div class="spinner"></div>
+                <p>이미지 분석 중...</p>
+                <div class="progress-container">
+                    <div id="progress-bar" class="progress-bar" style="width: 0%"></div>
+                </div>
+                <p id="progress-status">텍스트 인식 준비 중...</p>
+            </div>
+            
+            <div id="results" class="results" style="display: none;">
+                <h3 class="section-title">추출된 정보</h3>
+                <div class="data-grid">
+                    <div class="data-item">
+                        <span class="data-label">이름</span>
+                        <span id="name-value" class="data-value">-</span>
+                    </div>
+                    <div class="data-item">
+                        <span class="data-label">나이</span>
+                        <span id="age-value" class="data-value">-</span>
+                    </div>
+                    <div class="data-item">
+                        <span class="data-label">물건</span>
+                        <span id="item-value" class="data-value">-</span>
+                    </div>
+                    <div class="data-item">
+                        <span class="data-label">배송일</span>
+                        <span id="date-value" class="data-value">-</span>
+                    </div>
+                </div>
+                
+                <h3 class="section-title">전체 인식 텍스트</h3>
+                <div id="raw-text" class="raw-text"></div>
+            </div>
+        </div>
+        
+        <footer>
+            <p>© 2025 OCR 이미지 인식 애플리케이션 | Powered by Tesseract.js</p>
+        </footer>
+    </div>
+    
+    <script>
+        // DOM 요소 참조
+        const fileInput = document.getElementById('file-input');
+        const selectButton = document.getElementById('select-button');
+        const uploadSection = document.getElementById('upload-section');
+        const previewContainer = document.getElementById('preview-container');
+        const imagePreview = document.getElementById('image-preview');
+        const processButton = document.getElementById('process-button');
+        const loadingElement = document.getElementById('loading');
+        const resultsElement = document.getElementById('results');
+        const progressBar = document.getElementById('progress-bar');
+        const progressStatus = document.getElementById('progress-status');
+        const nameValue = document.getElementById('name-value');
+        const ageValue = document.getElementById('age-value');
+        const itemValue = document.getElementById('item-value');
+        const dateValue = document.getElementById('date-value');
+        const rawText = document.getElementById('raw-text');
+        
+        // 이미지 선택 버튼 클릭 시 파일 입력 트리거
+        selectButton.addEventListener('click', () => {
+            fileInput.click();
+        });
+        
+        // 파일 선택 시 처리
+        fileInput.addEventListener('change', handleFileSelect);
+        
+        // 드래그 앤 드롭 이벤트 처리
+        uploadSection.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            uploadSection.classList.add('drag-over');
+        });
+        
+        uploadSection.addEventListener('dragleave', () => {
+            uploadSection.classList.remove('drag-over');
+        });
+        
+        uploadSection.addEventListener('drop', (e) => {
+            e.preventDefault();
+            uploadSection.classList.remove('drag-over');
+            
+            if (e.dataTransfer.files.length > 0) {
+                fileInput.files = e.dataTransfer.files;
+                handleFileSelect(e);
+            }
+        });
+        
+        // 프로세스 버튼 클릭 시 OCR 처리 시작
+        processButton.addEventListener('click', processImage);
+        
+        // 파일 선택 처리 함수
+        function handleFileSelect(e) {
+            const file = fileInput.files[0];
+            
+            if (file && file.type.match('image.*')) {
+                const reader = new FileReader();
+                
+                reader.onload = (e) => {
+                    imagePreview.src = e.target.result;
+                    previewContainer.style.display = 'flex';
+                    resultsElement.style.display = 'none';
+                };
+                
+                reader.readAsDataURL(file);
+            }
+        }
+        
+        // 이미지 처리 함수
+        function processImage() {
+            if (!imagePreview.src) return;
+            
+            previewContainer.style.display = 'none';
+            loadingElement.style.display = 'flex';
+            resultsElement.style.display = 'none';
+            
+            // 결과 초기화
+            nameValue.textContent = '-';
+            ageValue.textContent = '-';
+            itemValue.textContent = '-';
+            dateValue.textContent = '-';
+            rawText.textContent = '';
+            
+            // Tesseract.js를 사용하여 OCR 처리
+            Tesseract.recognize(
+                imagePreview.src,
+                'kor+eng',
+                {
+                    logger: progress => updateProgress(progress)
+                }
+            ).then(({ data: { text } }) => {
+                // OCR 결과 처리
+                rawText.textContent = text;
+                
+                // 정보 추출
+                extractInformation(text);
+                
+                // 결과 표시
+                loadingElement.style.display = 'none';
+                resultsElement.style.display = 'block';
+            }).catch(error => {
+                console.error('OCR 처리 중 오류 발생:', error);
+                alert('이미지 처리 중 오류가 발생했습니다.');
+                loadingElement.style.display = 'none';
+                previewContainer.style.display = 'flex';
+            });
+        }
+        
+        // 진행 상황 업데이트 함수
+        function updateProgress(progress) {
+            let progressPercent = 0;
+            let status = '';
+            
+            switch (progress.status) {
+                case 'loading tesseract core':
+                    progressPercent = 10;
+                    status = 'Tesseract 코어 로딩 중...';
+                    break;
+                case 'loading language traineddata':
+                    progressPercent = 20;
+                    status = '언어 모델 로딩 중...';
+                    break;
+                case 'initializing tesseract':
+                    progressPercent = 30;
+                    status = 'Tesseract 초기화 중...';
+                    break;
+                case 'initializing api':
+                    progressPercent = 40;
+                    status = 'API 초기화 중...';
+                    break;
+                case 'recognizing text':
+                    progressPercent = 50 + (progress.progress * 50);
+                    status = '텍스트 인식 중: ' + Math.round(progress.progress * 100) + '%';
+                    break;
+            }
+            
+            progressBar.style.width = progressPercent + '%';
+            progressStatus.textContent = status;
+        }
+        
+        // 텍스트에서 정보 추출 함수
+        function extractInformation(text) {
+            // 이름 추출 (예: "이름: 홍길동" 또는 "이름 홍길동")
+            const nameMatch = text.match(/이름\s*:?\s*([^\s\d,]+)/i) || 
+                            text.match(/명\s*:?\s*([^\s\d,]+)/i);
+            
+            // 나이 추출 (예: "나이: 30" 또는 "나이 30")
+            const ageMatch = text.match(/나이\s*:?\s*(\d+)/i) || 
+                            text.match(/연령\s*:?\s*(\d+)/i);
+            
+            // 물건 추출 (예: "물건: 노트북" 또는 "상품: 노트북")
+            const itemMatch = text.match(/물건\s*:?\s*([^\n,]+)/i) || 
+                            text.match(/상품\s*:?\s*([^\n,]+)/i) ||
+                            text.match(/제품\s*:?\s*([^\n,]+)/i);
+            
+            // 배송일 추출 (예: "배송일: 2025-03-24" 또는 다양한 날짜 형식)
+            const dateMatch = text.match(/배송일\s*:?\s*(\d{4}[-/.]\d{1,2}[-/.]\d{1,2})/i) ||
+                            text.match(/배송\s*일자\s*:?\s*(\d{4}[-/.]\d{1,2}[-/.]\d{1,2})/i) ||
+                            text.match(/\d{4}[-/.]\d{1,2}[-/.]\d{1,2}/); // 날짜 형식만 찾기
+            
+            // 결과 업데이트
+            nameValue.textContent = nameMatch ? nameMatch[1].trim() : '인식되지 않음';
+            ageValue.textContent = ageMatch ? ageMatch[1].trim() : '인식되지 않음';
+            itemValue.textContent = itemMatch ? itemMatch[1].trim() : '인식되지 않음';
+            dateValue.textContent = dateMatch ? dateMatch[1].trim() : '인식되지 않음';
+        }
+    </script>
+</body>
+</html>
